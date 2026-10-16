@@ -1,0 +1,19 @@
+{
+  "name": "sprig-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-hosted server for Sprig mind maps: Google sign-in, SQLite storage and read-only share links",
+  "license": "MIT",
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/"
+  },
+  "dependencies": {
+    "@fastify/cookie": "11.1.2",
+    "fastify": "5.12.5",
+    "fflate": "0.8.3",
+    "jose": "6.2.12"
+  }
+}

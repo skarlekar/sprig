@@ -1,0 +1,14 @@
+# Local run: docker compose up -d --build, then open http://localhost:8080
+services:
+  sprig:
+    build: .
+    image: sprig:local
+    env_file: .env
+    ports:
+      - "127.0.0.1:8080:3000"   # only reachable from this computer
+    volumes:
+      - sprig_data:/data         # the SQLite database lives here and survives rebuilds
+    restart: unless-stopped
+
+volumes:
+  sprig_data:
