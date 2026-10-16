@@ -86,6 +86,7 @@ On first launch Sprig loads three example maps: **Launch: Field Notes 2.0**, **C
 - Tapered curved branches or angled branches, colored per first-level branch.
 - Several main nodes per map: double-click empty canvas to add one.
 - **Cross connections**: dashed arrows linking ideas in different branches.
+- A **+** button appears when you hover over a node, so you can grow the map with the mouse alone.
 - Drag and drop to nest a node, reorder it, or detach it as a new main node.
 - Fold and unfold branches. A folded branch shows how many nodes it hides.
 
@@ -137,6 +138,7 @@ On first launch Sprig loads three example maps: **Launch: Field Notes 2.0**, **C
 ### Editing nodes
 
 - **Select** a node by clicking it, and **edit** it by double-clicking, pressing `Space`, or just typing.
+- **Add nodes with the mouse:** hover over a node (or select it) and a round **+** button appears just past its outer edge. Click it to add a child, or `Shift`-click it to add a sibling. The new node opens for typing right away.
 - While editing, `Return` finishes, `Shift+Return` adds a line break, and `Tab` finishes and adds a child.
 - Press `Backspace` on a selected node (not while editing) to delete it and its branch.
 

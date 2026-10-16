@@ -330,7 +330,7 @@ let sel = null, selConn = null, editing = null, focusMode = false, connectFrom =
 let view = {x:0, y:0, k:1};
 let undoStack = [], redoStack = [];
 let search = {hits:[], i:-1, q:''};
-let drag = null, dropInfo = null, pan = null, lastDown = {t:0};
+let drag = null, dropInfo = null, pan = null, lastDown = {t:0}, hoverId = null;
 const pointers = new Map();
 const svg = $('#svg'), vp = $('#vp'), stage = $('#stage'), ed = $('#editor');
 const ser = o => JSON.stringify(o, (k,v) => k[0]==='_' ? undefined : v);
@@ -569,7 +569,22 @@ function nodeGroup(n, opts){
       items.push({t:'g', x:bx, y:by, act:'fold', items:[
         {t:'circle', cx:0, cy:0, r:n.collapsed ? 9 : 7.5, fill:tc.bg, stroke:d===0 ? tc.conn : col, sw:1.6},
         {t:'text', x:0, y:n.collapsed?3.6:4, s:lbl, font:`700 ${n.collapsed?10:12}px ${FU}`, fill:tc.text, anchor:'middle'}]});
-    } else if (n.children.length && n.collapsed){}
+    }
+    if ((hoverId === n.id || sel === n.id) && !editing && !(drag && drag.moved) && !connectFrom){
+      const badge = n.children.length && (n.collapsed || sel === n.id);
+      let px, py;
+      if (n._d === 0){ px = n._w/2 + (badge ? 24 : 0); py = n._h + 13; }
+      else if (doc.layout === 'tree'){ px = n._w + 14; py = boxed(n) ? n._h/2 : n._h - 1; }
+      else { const [bx, by] = badgePos(n); px = bx + n._side * (badge ? 22 : 6); py = by; }
+      // invisible bridge so the pointer can travel from the node to the button without losing hover
+      const x0 = Math.min(0, px-12), x1 = Math.max(n._w, px+12), y0 = Math.min(0, py-12), y1 = Math.max(n._h, py+12);
+      items.unshift({t:'rect', x:x0, y:y0, w:x1-x0, h:y1-y0, fill:'#000000', op:0});
+      const bc = d === 0 ? tc.conn : col;
+      items.push({t:'g', x:px, y:py, act:'add', items:[
+        {t:'circle', cx:0, cy:0, r:12, fill:'#000000', op:0},
+        {t:'circle', cx:0, cy:0, r:9, fill:bc},
+        {t:'path', d:'M-4 0H4M0 -4V4', stroke:textOn(bc), sw:1.8}]});
+    }
     if (search.hits.includes(n.id)) items.push({t:'rect', x:-5, y:-5, w:n._w+10, h:n._h+10, r:s.r+5, stroke:'#f0a020', sw:2.5, dash:'5 4'});
     if (sel === n.id) items.push({t:'rect', x:-4, y:-4, w:n._w+8, h:n._h+8, r:s.box?s.r+4:7, stroke:getSel(), sw:2.2});
     if (connectFrom === n.id) items.push({t:'rect', x:-6, y:-6, w:n._w+12, h:n._h+12, r:s.r+6, stroke:getSel(), sw:1.5, dash:'4 4'});
@@ -929,9 +944,12 @@ svg.addEventListener('pointerdown', e => {
   const id = g ? g.dataset.id : null;
   const dbl = now - lastDown.t < 380 && lastDown.id === id && Math.hypot(sx-lastDown.x, sy-lastDown.y) < 6;
   lastDown = {t: dbl ? 0 : now, id, x:sx, y:sy};
+  e.preventDefault(); // keep focus where we put it (e.g. the node editor)
   if (act && id){
     const n = byId[id];
-    if (act.dataset.act === 'fold') toggleFold(n); else if (act.dataset.act === 'task') toggleDone(n);
+    if (act.dataset.act === 'fold') toggleFold(n);
+    else if (act.dataset.act === 'task') toggleDone(n);
+    else if (act.dataset.act === 'add'){ hoverId = null; if (e.shiftKey && parentOf[id]){ sel = id; addSibling(); } else addChild(n); }
     return;
   }
   if (connectFrom){
@@ -952,6 +970,12 @@ svg.addEventListener('pointerdown', e => {
   }
   svg.focus({preventScroll:true});
 });
+svg.addEventListener('pointermove', e => {
+  if (e.pointerType === 'touch' || drag || pan) return;
+  const g = e.target.closest('[data-id]'), id = g ? g.dataset.id : null;
+  if (id !== hoverId){ hoverId = id; render(); }
+});
+svg.addEventListener('pointerleave', () => { if (hoverId){ hoverId = null; render(); } });
 window.addEventListener('pointermove', e => {
   if (pointers.has(e.pointerId)) pointers.set(e.pointerId, stageXY(e));
   if (pan && pan.pinch && pointers.size === 2){
