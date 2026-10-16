@@ -628,14 +628,14 @@ function buildScene(opts = {}){
 
 /* ---------- renderers ---------- */
 function svgOf(it){
-  const a = (k, v) => v == null ? '' : ` ${k}="${v}"`;
+  const a = (k, v) => v == null ? '' : ` ${k}="${esc(v)}"`;
   const op = it.op != null && it.op !== 1 ? a('opacity', it.op) : '';
   switch (it.t){
     case 'g': return `<g${a('data-id',it.id)}${a('data-act',it.act)}${a('data-conn',it.conn)} transform="translate(${(it.x||0).toFixed?(it.x||0).toFixed(1):0} ${(it.y||0).toFixed?(it.y||0).toFixed(1):0})"${op}>${it.items.map(svgOf).join('')}</g>`;
-    case 'rect': return `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}"${a('rx',it.r)} fill="${it.fill||'none'}"${a('stroke',it.stroke)}${a('stroke-width',it.stroke?it.sw:null)}${a('stroke-dasharray',it.dash)}${op}/>`;
-    case 'circle': return `<circle cx="${it.cx}" cy="${it.cy}" r="${it.r}" fill="${it.fill||'none'}"${a('stroke',it.stroke)}${a('stroke-width',it.sw)}${op}/>`;
-    case 'path': return `<path d="${it.d}" fill="${it.fill||'none'}"${a('stroke',it.stroke)}${a('stroke-width',it.stroke?it.sw:null)}${it.stroke?' stroke-linecap="round" stroke-linejoin="round"':''}${a('stroke-dasharray',it.dash)}${op}/>`;
-    case 'text': return `<text x="${it.x.toFixed(1)}" y="${it.y.toFixed(1)}" style="font:${esc(it.font)};white-space:pre" fill="${it.fill}"${a('text-anchor',it.anchor)}${op}>${esc(it.s)}</text>`;
+    case 'rect': return `<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}"${a('rx',it.r)} fill="${esc(it.fill||'none')}"${a('stroke',it.stroke)}${a('stroke-width',it.stroke?it.sw:null)}${a('stroke-dasharray',it.dash)}${op}/>`;
+    case 'circle': return `<circle cx="${it.cx}" cy="${it.cy}" r="${it.r}" fill="${esc(it.fill||'none')}"${a('stroke',it.stroke)}${a('stroke-width',it.sw)}${op}/>`;
+    case 'path': return `<path d="${esc(it.d)}" fill="${esc(it.fill||'none')}"${a('stroke',it.stroke)}${a('stroke-width',it.stroke?it.sw:null)}${it.stroke?' stroke-linecap="round" stroke-linejoin="round"':''}${a('stroke-dasharray',it.dash)}${op}/>`;
+    case 'text': return `<text x="${it.x.toFixed(1)}" y="${it.y.toFixed(1)}" style="font:${esc(it.font)};white-space:pre" fill="${esc(it.fill)}"${a('text-anchor',it.anchor)}${op}>${esc(it.s)}</text>`;
   }
   return '';
 }
@@ -738,12 +738,47 @@ function flushSave(){ if (saveT){ clearTimeout(saveT); saveT = null; doc.updated
   const ix = getIndex().filter(e => e.id !== doc.id); ix.unshift({id:doc.id, title:doc.title||'Untitled map', updated:doc.updated, count, theme:doc.theme}); putIndex(ix); } }
 function openDoc(d, opts = {}){
   if (editing) endEdit(); flushSave();
-  doc = d; doc.connections = doc.connections || []; doc.layout = doc.layout || 'map'; doc.theme = doc.theme || 'meadow'; doc.branch = doc.branch || 'curve';
+  doc = sanitizeDoc(d);
   undoStack = []; redoStack = []; sel = doc.roots[0] ? doc.roots[0].id : null; selConn = null; connectFrom = null; closeSearch();
   store.set(LAST, doc.id); mem[LAST] = doc.id;
   $('#title').value = doc.title || '';
   fit(false); renderOutline(); renderInspector(true); renderDocs();
   if (opts.save) save();
+}
+// Maps can come from imported files, so coerce every field to a known-safe value before use.
+const HEX = /^#[0-9a-f]{3}([0-9a-f]{3})?$/i, SAFE_ID = /^[a-z0-9]{1,32}$/i;
+function sanitizeDoc(d){
+  const ids = new Set();
+  const clean = n => {
+    if (!n || typeof n !== 'object') return null;
+    const o = {id: typeof n.id === 'string' && SAFE_ID.test(n.id) && !ids.has(n.id) ? n.id : uid(), text: String(n.text ?? '')};
+    ids.add(o.id);
+    if (typeof n.color === 'string' && HEX.test(n.color)) o.color = n.color;
+    if (['box','pill','line'].includes(n.shape)) o.shape = n.shape;
+    if (typeof n.task === 'boolean') o.task = n.task;
+    if (typeof n.note === 'string' && n.note) o.note = n.note;
+    if (typeof n.sticker === 'string' && n.sticker && [...n.sticker].length <= 4) o.sticker = n.sticker;
+    if (n.collapsed === true) o.collapsed = true;
+    if (n.bold === true) o.bold = true;
+    if (n.italic === true) o.italic = true;
+    if (Number.isFinite(n.x) && Number.isFinite(n.y)){ o.x = n.x; o.y = n.y; }
+    o.children = (Array.isArray(n.children) ? n.children : []).map(clean).filter(Boolean);
+    return o;
+  };
+  const roots = (Array.isArray(d.roots) ? d.roots : []).map(clean).filter(Boolean);
+  if (!roots.length) roots.push(N('Central idea', {x:0, y:0}));
+  roots.forEach((r, i) => { if (r.x == null){ r.x = 0; r.y = i * 420; } });
+  return {
+    id: typeof d.id === 'string' && SAFE_ID.test(d.id) ? d.id : uid(),
+    title: String(d.title ?? ''), updated: Number.isFinite(d.updated) ? d.updated : Date.now(),
+    theme: THEMES[d.theme] && Object.hasOwn(THEMES, d.theme) ? d.theme : 'meadow',
+    layout: ['map','right','tree'].includes(d.layout) ? d.layout : 'map',
+    branch: ['curve','elbow'].includes(d.branch) ? d.branch : 'curve',
+    roots,
+    connections: (Array.isArray(d.connections) ? d.connections : [])
+      .filter(c => c && ids.has(c.from) && ids.has(c.to))
+      .map(c => ({id: typeof c.id === 'string' && SAFE_ID.test(c.id) ? c.id : uid(), from:c.from, to:c.to}))
+  };
 }
 function newDoc(roots, extra){
   const d = Object.assign({id:uid(), title:'', theme:'meadow', layout:'map', branch:'curve', roots, connections:[]}, extra||{});
@@ -1291,13 +1326,13 @@ function renderDocs(){
   if ($('#docs').hidden) return;
   const ix = getIndex();
   $('#docList').innerHTML = ix.map(e => {
-    const th = THEMES[e.theme] || THEMES.meadow, pal = th.light.palette;
+    const th = (Object.hasOwn(THEMES, e.theme) && THEMES[e.theme]) || THEMES.meadow, pal = th.light.palette;
     const date = new Date(e.updated || Date.now()).toLocaleDateString(undefined, {month:'short', day:'numeric'});
-    return `<div class="doc${doc && e.id === doc.id ? ' on' : ''}" data-doc="${e.id}" role="button" tabindex="0">
+    return `<div class="doc${doc && e.id === doc.id ? ' on' : ''}" data-doc="${esc(e.id)}" role="button" tabindex="0">
       <span class="dot" style="background:${pal[0]}"></span>
       <div class="dt"><div class="dn">${esc(e.title || 'Untitled map')}</div><div class="dm">${e.count || 0} nodes · ${date}</div></div>
-      ${pendingDelete === e.id ? `<span class="confirm"><button class="btn danger" data-del="${e.id}" style="padding:3px 8px">Delete</button><button class="btn" data-keep style="padding:3px 8px">Keep</button></span>`
-        : `<button class="dx" data-ask="${e.id}" aria-label="Delete ${esc(e.title||'map')}" title="Delete">✕</button>`}
+      ${pendingDelete === e.id ? `<span class="confirm"><button class="btn danger" data-del="${esc(e.id)}" style="padding:3px 8px">Delete</button><button class="btn" data-keep style="padding:3px 8px">Keep</button></span>`
+        : `<button class="dx" data-ask="${esc(e.id)}" aria-label="Delete ${esc(e.title||'map')}" title="Delete">✕</button>`}
     </div>`;
   }).join('') || '<p class="muted" style="padding:8px">No maps yet.</p>';
 }
@@ -1327,7 +1362,7 @@ function renderOutline(){
   const w = (n, d) => {
     const done = n.task === true;
     rows.push(`<div class="orow d${Math.min(d,2)}${sel===n.id?' sel':''}${done?' done':''}" data-oid="${n.id}" style="--d:${d}">
-      ${n.children.length ? `<button class="of${n.collapsed?' closed':''}" data-ofold tabindex="-1" aria-label="${n.collapsed?'Expand':'Collapse'}"><svg viewBox="0 0 12 12"><path d="M2 4h8L6 9z"/></svg></button>` : `<span class="of"><span class="ob" style="background:${n._color || TC().conn}"></span></span>`}
+      ${n.children.length ? `<button class="of${n.collapsed?' closed':''}" data-ofold tabindex="-1" aria-label="${n.collapsed?'Expand':'Collapse'}"><svg viewBox="0 0 12 12"><path d="M2 4h8L6 9z"/></svg></button>` : `<span class="of"><span class="ob" style="background:${esc(n._color || TC().conn)}"></span></span>`}
       ${n.task != null ? `<input type="checkbox" class="ock" data-ock ${done?'checked':''} aria-label="Done">` : ''}
       <div class="ot" contenteditable="plaintext-only" spellcheck="false">${esc(n.text)}</div>
       ${n.note ? '<span class="on" title="Has a note">✎</span>' : ''}
