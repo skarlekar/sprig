@@ -21,6 +21,7 @@ A mind-mapping app for the browser, modelled on [MindNode](https://www.mindnode.
 - [Browser support](#browser-support)
 - [Known limitations](#known-limitations)
 - [Contributing](#contributing)
+- [License](#license)
 
 ---
 
@@ -292,6 +293,7 @@ The only external resource is the Google Fonts stylesheet.
 sprig/
 ├── index.html        # the whole app
 ├── README.md
+├── LICENSE           # MIT
 ├── docs/             # screenshots used in this README
 └── .gitignore
 ```
@@ -328,6 +330,10 @@ Before opening a pull request, check:
 - Undo and redo after the change.
 - Exporting to PNG and Sprig JSON, then importing the JSON again.
 - A narrow (phone-sized) window.
+
+## License
+
+Sprig is released under the [MIT License](LICENSE). You're free to use, modify and distribute it, including commercially, as long as you keep the copyright notice.
 
 ---
 
