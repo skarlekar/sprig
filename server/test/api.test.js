@@ -67,10 +67,28 @@ test('allowlist: owner signs in, anyone else is refused with no rows created', a
 
 test('return-to paths cannot leave the site', async () => {
   const { app } = await setup();
-  for (const next of ['//evil.example', 'https://evil.example', '/\\evil.example']) {
+  for (const next of ['//evil.example', 'https://evil.example', '/\\evil.example', '/\t/evil.example', '/\n/evil.example', '/%09/evil.example', '/\x00/x']) {
     const r = await app.inject('/auth/dev?next=' + encodeURIComponent(next));
-    assert.equal(r.headers.location, '/', next);
+    const loc = r.headers.location;
+    assert.ok(loc.startsWith('/') && !loc.startsWith('//') && !loc.includes('\\'), `${JSON.stringify(next)} -> ${loc}`);
+    assert.equal(new URL(loc, ORIGIN).origin, ORIGIN, `${JSON.stringify(next)} stays on Sprig`);
   }
+});
+
+test('requests for any other host are refused (DNS rebinding), except the health check', async () => {
+  const { app } = await setup();
+  const evil = await app.inject({ url: '/auth/dev', headers: { host: 'rebind.attacker.example:8080' } });
+  assert.equal(evil.statusCode, 421);
+  assert.equal(evil.headers['set-cookie'], undefined, 'no session for a foreign host');
+  assert.equal((await app.inject({ url: '/api/maps', headers: { host: '127.0.0.1:8080' } })).statusCode, 421);
+  assert.equal((await app.inject({ url: '/healthz', headers: { host: '127.0.0.1:3000' } })).statusCode, 200);
+  assert.equal((await app.inject({ url: '/login', headers: { host: 'localhost:8080' } })).statusCode, 200);
+});
+
+test('a same-site return-to path survives sign-in', async () => {
+  const { app } = await setup();
+  const r = await app.inject('/auth/dev?next=' + encodeURIComponent('/?map=abc#top'));
+  assert.equal(r.headers.location, '/?map=abc#top');
 });
 
 test('removing an address from the allowlist ends its sessions', async () => {

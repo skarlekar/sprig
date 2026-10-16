@@ -98,6 +98,18 @@ export async function buildApp(config, { db, providers } = {}) {
     if (config.secure) reply.header('Strict-Transport-Security', 'max-age=31536000');
     return payload;
   });
+  // Only answer to the host in PUBLIC_URL. This stops DNS-rebinding pages (an attacker's domain pointed at
+  // 127.0.0.1) from talking to a local Sprig. The health check is exempt so Docker can reach it directly.
+  const publicHost = new URL(config.publicUrl).hostname.toLowerCase();
+  app.addHook('onRequest', async (req, reply) => {
+    if (req.url === '/healthz') return;
+    let host = '';
+    try { host = new URL(`http://${req.headers.host || ''}`).hostname.toLowerCase(); } catch { /* malformed */ }
+    if (host !== publicHost) {
+      req.log.warn({ host: req.headers.host }, 'request refused: unexpected host');
+      return reply.code(421).type('text/html').send(messagePage('Wrong address', `Open Sprig at ${config.publicUrl}`));
+    }
+  });
   // Cross-site requests can never change anything: every non-GET must come from this site.
   app.addHook('onRequest', async (req, reply) => {
     if (req.method === 'GET' || req.method === 'HEAD') return;
@@ -126,7 +138,14 @@ export async function buildApp(config, { db, providers } = {}) {
     q.newSession.run(sha256(token), userId, iso(now), iso(now), iso(now + SESSION_TTL), String(req.headers['user-agent'] || '').slice(0, 300), req.ip);
     reply.setCookie(config.cookie.session, token, { ...cookieOpts, maxAge: SESSION_TTL / 1000 });
   }
-  const safeNext = n => (typeof n === 'string' && n.startsWith('/') && !n.startsWith('//') && !n.startsWith('/\\')) ? n : '/';
+  // Return-to paths: resolve them the way a browser would and keep only same-origin results.
+  const safeNext = n => {
+    if (typeof n !== 'string' || !n.startsWith('/') || /[\x00-\x1f\x7f\\]/.test(n)) return '/';
+    try {
+      const u = new URL(n, config.publicUrl);
+      return u.origin === config.origin ? u.pathname + u.search + u.hash : '/';
+    } catch { return '/'; }
+  };
 
   const refuse = (req, reply, provider, email) => {
     req.log.warn({ provider, email }, 'sign-in refused');

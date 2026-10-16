@@ -157,7 +157,7 @@ Each provider needs a one-time registration on its developer site. That's how th
 
 Sprig lets someone in only when the provider confirms their email address and that address is in `ALLOWED_EMAILS`. Use the same address you put there when you sign in for the first time.
 
-Keep `PUBLIC_URL` and the redirect addresses you register exactly in step: the same host (`localhost` or `127.0.0.1`), port and path. A mismatch is the most common sign-in error.
+Keep `PUBLIC_URL` and the redirect addresses you register exactly in step: the same host (`localhost` or `127.0.0.1`), port and path. A mismatch is the most common sign-in error. Sprig also only answers requests addressed to the host in `PUBLIC_URL` (others get **Wrong address**), which blocks DNS-rebinding attacks on a local server, so open it at exactly that address.
 
 #### Google
 
@@ -176,7 +176,7 @@ Changes to redirect addresses can take a few minutes to apply. If you see `redir
 3. Under the use case's **Permissions and features**, click **Add** next to `email`. `public_profile` is already there.
 4. Leave the app in **Development** mode. Only people with a role on the app (you) can sign in, which acts as a second gate.
 5. From **App settings → Basic**, copy the **App ID** to `FACEBOOK_CLIENT_ID` and the **App secret** (click **Show**) to `FACEBOOK_CLIENT_SECRET`.
-6. Redirect address: Facebook enforces HTTPS and refuses to list any `http://` address, including `localhost` and `127.0.0.1`. In Development mode Facebook says it allows `http://localhost` without listing it, so run Sprig at `http://localhost:8080` (not `127.0.0.1`) locally. On a server with HTTPS, add `https://<your domain>/auth/facebook/callback` under **Facebook Login → Settings → Valid OAuth Redirect URIs**.
+6. Redirect address: Facebook enforces HTTPS and refuses to list any `http://` address, including `localhost` and `127.0.0.1`. In Development mode Facebook allows `http://localhost` without listing it (tested), so run Sprig at `http://localhost:8080` (not `127.0.0.1`) locally. On a server with HTTPS, add `https://<your domain>/auth/facebook/callback` under **Facebook Login → Settings → Valid OAuth Redirect URIs**.
 
 Facebook doesn't say whether the email it shares is verified, so Sprig never lets Facebook open an account or find one by email. Connect it once from **Account → Sign-in methods** while signed in with Google, X or the local test sign-in. After that, **Continue with Facebook** works. Sprig uses Graph API `v26.0`; set `FACEBOOK_GRAPH_VERSION` to change it.
 
